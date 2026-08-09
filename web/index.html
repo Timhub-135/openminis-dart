@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="OpenMinis Flutter Web">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="OpenMinis">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>OpenMinis</title>
+  <link rel="manifest" href="manifest.json">
+  <style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0c1018} flutter-view{width:100vw;height:100vh;display:block}</style>
+</head>
+<body>
+  <div id="appmsg" style="position:fixed;bottom:6px;right:8px;color:#3a4a6f;font:10px monospace;z-index:9"></div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (function(){
+      var msg=document.getElementById('appmsg');
+      window.addEventListener('error',function(e){ msg.textContent='err: '+(e.message||e.error); console.error(e); });
+      window.addEventListener('unhandledrejection',function(e){ msg.textContent='rej: '+(e.reason&&e.reason.message||e.reason); console.error(e.reason); });
+      msg.textContent='booting…';
+      // Poll: resize flutter-view to window size to guarantee non-zero viewport.
+      setInterval(function(){
+        var v=document.querySelector('flutter-view');
+        if(v){
+          var rect=v.getBoundingClientRect();
+          if(rect.width!==window.innerWidth||rect.height!==window.innerHeight){
+            v.style.width=''+window.innerWidth+'px';
+            v.style.height=''+window.innerHeight+'px';
+            window.dispatchEvent(new Event('resize'));
+            msg.textContent='resized to '+window.innerWidth+'x'+window.innerHeight;
+          } else { msg.textContent='flutter-view '+Math.round(rect.width)+'x'+Math.round(rect.height); }
+        }
+      }, 600);
+    })();
+  </script>
+</body>
+</html>

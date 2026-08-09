@@ -1,0 +1,16 @@
+name: openminis_lan_server
+description: >
+  LAN web server for the Dart OpenMinis rewrite. Serves a chat UI and a REST +
+  SSE API so any device on the local network can talk to the agent. Uses the
+  pure-Dart core (openminis_core) — no Flutter required.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  openminis_core:
+    path: ../dart_lib
+
+dev_dependencies:
+  lints: ^4.0.0

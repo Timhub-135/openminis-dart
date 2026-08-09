@@ -1,0 +1,19 @@
+name: openminis_core
+description: >
+  Core Dart re-write of the OpenMinis agent platform. Platform-agnostic models,
+  stores, provider client, tool registry, agent loop and cross-platform sync
+  engine. Targets Windows and Android through the hosting Flutter app.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+# This package is intentionally pure-Dart (no Flutter dependency) so the core
+# agent + sync logic is unit-testable headlessly. The Flutter app shell in the
+# parent folder instantiates the platform adapters (storage/network/UI hooks).
+dependencies:
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.0

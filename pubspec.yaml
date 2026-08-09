@@ -1,0 +1,29 @@
+name: flutter_minis
+description: >
+  OpenMinis rewritten in Dart / Flutter, targeting Windows and Android. The core
+  agent + sync logic lives in the pure-Dart `dart_lib` package; this app shell
+  provides the cross-platform UI, the platform storage/network adapters, and the
+  LAN/relay sync wiring.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  openminis_core:
+    path: dart_lib
+  provider: ^6.1.0
+  path_provider: ^2.1.0
+  # File/attachments + sync JSON handling.
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

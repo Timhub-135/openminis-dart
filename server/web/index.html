@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenMinis · Web</title>
+<style>
+  :root{
+    --bg:#0c1018; --panel:#121826; --panel2:#0f1520; --border:#232d42;
+    --text:#e8ecf3; --muted:#8b96ab; --accent:#3b6cf6; --accent2:#21c063;
+    --user:#2a4bd7; --assistant:#1a2233; --danger:#e5484d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;
+       background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+  #app{display:flex;height:100vh}
+
+  /* Sidebar */
+  #side{width:280px;min-width:280px;background:var(--panel);border-right:1px solid var(--border);
+        display:flex;flex-direction:column}
+  #side .brand{padding:16px 16px 12px;border-bottom:1px solid var(--border)}
+  #side .brand h1{font-size:16px;margin:0;display:flex;align-items:center;gap:8px}
+  #side .brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:#fff}
+  #side .brand small{color:var(--muted);display:block;margin-top:2px;font-size:11px}
+  #sessionList{flex:1;overflow-y:auto;padding:8px}
+  .sess{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent}
+  .sess:hover{background:var(--panel2)}
+  .sess.active{background:var(--panel2);border-color:var(--accent)}
+  .sess .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sess .m{font-size:11px;color:var(--muted);margin-top:2px}
+  .sess .del{float:right;visibility:hidden;color:var(--muted);border:0;background:none;cursor:pointer;font-size:12px}
+  .sess:hover .del{visibility:visible}
+  .sess .del:hover{color:var(--danger)}
+  #newBtn{margin:10px 12px;padding:10px;border:0;border-radius:8px;background:var(--accent);color:#fff;
+          font-size:13px;font-weight:600;cursor:pointer}
+  #newBtn:hover{filter:brightness(1.1)}
+
+  /* Main */
+  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  #topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+          padding:0 16px;gap:12px;background:var(--panel)}
+  #topbar .title{font-size:14px;font-weight:600}
+  #topbar .status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent2)}
+  .dot.busy{background:var(--danger);animation:blink 1s infinite}
+  .dot.off{background:#555}
+  @keyframes blink{50%{opacity:.3}}
+  #providerTags{display:flex;gap:6px;align-items:center}
+  .tag{font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--border);color:var(--muted)}
+  .tag.on{color:var(--accent2);border-color:var(--accent2)}
+
+  #chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:4px}
+  .msgrow{display:flex;margin:6px 0;width:100%}
+  .msgrow.user{justify-content:flex-end}
+  .bubble{max-width:72%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  .msgrow.user .bubble{background:var(--user);border-bottom-right-radius:4px}
+  .msgrow.assistant .bubble{background:var(--assistant);border-bottom-left-radius:4px;border:1px solid var(--border)}
+  .msgrow.system{justify-content:center}
+  .msgrow.system .bubble{background:transparent;color:var(--muted);font-size:12px;max-width:90%;text-align:center}
+  .meta{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .thinking{font-style:italic;color:#9aa8c9;font-size:13px;border-left:3px solid #445;padding-left:8px;margin:4px 0}
+  .toolchip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:4px 10px;margin:2px 4px 2px 0;
+            border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--muted)}
+  .toolchip.run{color:var(--accent);border-color:var(--accent)}
+  .toolchip.ok{color:var(--accent2);border-color:var(--accent2)}
+  .toolchip.err{color:var(--danger);border-color:var(--danger)}
+  .toolchip .spin{width:10px;height:10px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;display:inline-block;animation:blink .8s infinite}
+  .cursor{display:inline-block;width:7px;height:14px;background:var(--accent);margin-left:2px;animation:blink .8s infinite;vertical-align:text-bottom}
+
+  /* Composer */
+  #composer{border-top:1px solid var(--border);padding:12px 16px;background:var(--panel);display:flex;gap:10px;align-items:flex-end}
+  #input{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+         color:var(--text);font-size:14px;resize:none;min-height:44px;max-height:160px;outline:none;font-family:inherit}
+  #input:focus{border-color:var(--accent)}
+  #send{width:44px;height:44px;border:0;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer;font-size:16px}
+  #send:disabled{opacity:.4;cursor:not-allowed}
+  #send:hover:not(:disabled){filter:brightness(1.1)}
+
+  /* Right panel */
+  #right{width:300px;min-width:300px;background:var(--panel);border-left:1px solid var(--border);
+         display:flex;flex-direction:column;overflow-y:auto}
+  .rsec{padding:14px 16px;border-bottom:1px solid var(--border)}
+  .rsec h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 10px}
+  .kpi{display:flex;gap:10px}
+  .kpi .card{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+  .kpi .num{font-size:20px;font-weight:700}
+  .kpi .lbl{font-size:11px;color:var(--muted);margin-top:2px}
+  .trow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #161f32;font-size:13px}
+  .trow:last-child{border-bottom:0}
+  .trow .nm{display:flex;align-items:center;gap:8px}
+  .pill{font-size:10px;padding:1px 7px;border-radius:10px;background:#1c2740;color:var(--muted)}
+  .pill.ok{background:#12331f;color:var(--accent2)}
+  .sync{display:flex;align-items:center;gap:8px;font-size:13px}
+  #syncBtn{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel2);color:var(--text);cursor:pointer;font-size:12px}
+  #syncBtn:hover{border-color:var(--accent)}
+  .mrow{font-size:12px;color:var(--muted);padding:5px 0;border-bottom:1px dashed #1a2334}
+  .row{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0}
+  .row select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px}
+  .row label{color:var(--muted);min-width:64px;font-size:12px}
+
+  .togglebar{display:flex;gap:6px;margin-bottom:10px}
+  .tabbtn{flex:1;padding:7px 4px;font-size:12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+  .tabbtn.on{background:var(--panel2);color:var(--text);border-color:var(--accent)}
+  .hidden{display:none !important}
+
+  /* Scrollbars */
+  ::-webkit-scrollbar{width:10px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#2a3550;border-radius:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  @media (max-width:900px){ #side{display:none} #right{display:none} .bubble{max-width:90%} }
+  #mobileBar{display:none}
+  @media (max-width:900px){
+    #mobileBar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--panel)}
+    #mobileBar button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Sidebar -->
+  <aside id="side">
+    <div class="brand">
+      <h1><span class="logo">M</span> OpenMinis</h1>
+      <small id="deviceId">web · dart</small>
+    </div>
+    <button id="newBtn">＋ 新建会话</button>
+    <div id="sessionList"></div>
+  </aside>
+
+  <!-- Main -->
+  <main id="main">
+    <div id="mobileBar">
+      <button id="mSessions">☰ 会话</button>
+      <button id="mRight">⚙ 面板</button>
+      <span class="dot" id="mDot"></span>
+    </div>
+    <div id="topbar">
+      <span class="title" id="curTitle">选择或新建会话</span>
+      <div id="providerTags"></div>
+      <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">连接中…</span></div>
+    </div>
+    <div id="chat"></div>
+    <div id="composer">
+      <textarea id="input" rows="1" placeholder="给 agent 发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button id="send" title="发送">➤</button>
+    </div>
+  </main>
+
+  <!-- Right panel -->
+  <aside id="right">
+    <div class="rsec">
+      <h3>运行状态</h3>
+      <div class="kpi">
+        <div class="card"><div class="num" id="kSessions">0</div><div class="lbl">会话</div></div>
+        <div class="card"><div class="num" id="kMsgs">0</div><div class="lbl">消息</div></div>
+        <div class="card"><div class="num" id="kTools">0</div><div class="lbl">工具</div></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label for="providerSel">提供方</label>
+        <select id="providerSel"></select>
+      </div>
+    </div>
+
+    <div class="rsec">
+      <div class="togglebar">
+        <button class="tabbtn on" data-tab="tools" onclick="switchTab('tools')">工具</button>
+        <button class="tabbtn" data-tab="memory" onclick="switchTab('memory')">记忆</button>
+        <button class="tabbtn" data-tab="sync" onclick="switchTab('sync')">同步</button>
+      </div>
+      <div id="tab-tools"><div id="toolList"></div></div>
+      <div id="tab-memory" class="hidden"><div id="memList"></div></div>
+      <div id="tab-sync" class="hidden">
+        <div class="sync" id="syncRow"></div>
+        <div style="margin-top:10px"><button id="syncBtn" onclick="startSync()">启动局域网同步</button></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $ = (s)=>document.querySelector(s);
+let state = { sessionId:null, busy:false, es:null, lastEvent:null };
+
+/* ---------- fetch helpers ---------- */
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  if(!r.ok){ const t=await r.text().catch(()=>('HTTP '+r.status)); throw new Error(t); }
+  return r.json();
+}
+
+/* ---------- sessions ---------- */
+async function loadSessions(){
+  try{
+    const d = await api('/api/sessions');
+    const list = $('#sessionList'); list.innerHTML='';
+    d.sessions.forEach(s=>{
+      const el=document.createElement('div');
+      el.className='sess'+(s.id===state.sessionId?' active':'');
+      el.innerHTML=`<div class="t">${esc(s.title)}</div><div class="m">${s.messageCount} 条 · ${rel(s.updatedAt)}</div>
+        <button class="del" onclick="delSession('${s.id}',event)">✕</button>`;
+      el.onclick=()=>openSession(s.id);
+      list.appendChild(el);
+    });
+    $('#kSessions').textContent = d.sessions.length;
+  }catch(e){ toast('加载会话失败: '+e.message); }
+}
+async function newSession(){
+  const d = await api('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  state.sessionId=d.session.id;
+  $('#chat').innerHTML=''; updateTitle();
+  loadSessions(); openSession(state.sessionId);
+}
+async function delSession(id,ev){
+  ev.stopPropagation();
+  await api('/api/session/'+id,{method:'DELETE'});
+  if(state.sessionId===id){ state.sessionId=null; $('#chat').innerHTML=''; updateTitle(); }
+  loadSessions();
+}
+async function openSession(id){
+  state.sessionId=id; updateTitle(); loadSessions();
+  const d = await api('/api/session/'+id+'/messages');
+  renderMessages(d.messages);
+}
+
+/* ---------- rendering ---------- */
+let streamBuf = null; // { row, textEl, thinksEl, toolsRow }
+function renderMessages(msgs){
+  const chat=$('#chat'); chat.innerHTML=''; streamBuf=null; $('#kMsgs').textContent=msgs.length;
+  msgs.forEach(m=>{
+    if(m.role==='systemTokens') return;
+    const row=document.createElement('div');
+    row.className='msgrow '+m.role;
+    const b=document.createElement('div'); b.className='bubble';
+    if(m.meta) b.innerHTML+=`<div class="meta">${esc(m.meta)}</div>`;
+    if(m.thinking){
+      const th=document.createElement('div'); th.className='thinking'; th.textContent='🧠 '+m.thinking;
+      b.appendChild(th);
+    }
+    if(m.toolCalls && m.toolCalls.length){
+      const tc=document.createElement('div');
+      m.toolCalls.forEach(t=>tc.appendChild(toolChip(t)));
+      b.appendChild(tc);
+    }
+    if(m.content) b.appendChild(textNode(m.content));
+    row.appendChild(b); chat.appendChild(row);
+  });
+  chat.scrollTop=chat.scrollHeight;
+}
+function textNode(t){ const n=document.createElement('div'); n.textContent=t; return n; }
+function toolChip(t){
+  const c=document.createElement('span'); c.className='toolchip '+t.status+' tool-chip';
+  const icon = t.status==='run' ? `<span class="spin"></span>` : (t.status==='ok'?'✓':(t.status==='err'?'✕':'·'));
+  c.innerHTML=`${icon} ${esc(t.name)}${t.status==='err'?` <span style="color:var(--danger)">${esc(t.output||'')}</span>`:''}`;
+  return c;
+}
+
+/* live streaming assistant bubble */
+function ensureStreamBubble(){
+  if(streamBuf){ if(streamBuf.detached){ restartBubble(); } return streamBuf; }
+  const chat=$('#chat');
+  const row=document.createElement('div'); row.className='msgrow assistant'; row.id='streamRow';
+  const b=document.createElement('div'); b.className='bubble';
+  b.innerHTML='<div class="meta" id="streamMeta">agent 正在思考…</div>';
+  const thinks=document.createElement('div'); thinks.className='thinking hidden'; thinks.id='streamThinks';
+  const tools=document.createElement('div'); tools.id='streamTools';
+  const text=document.createElement('div'); text.id='streamText';
+  b.appendChild(thinks); b.appendChild(tools); b.appendChild(text);
+  row.appendChild(b); chat.appendChild(row);
+  chat.scrollTop=chat.scrollHeight;
+  streamBuf={ row, textEl:text, thinksEl:thinks, toolsEl:tools, hadThinking:false, hadTools:false, detached:false };
+  return streamBuf;
+}
+function restartBubble(){
+  streamBuf.detached=false;
+  const chat=$('#chat');
+  const row=document.createElement('div'); row.className='msgrow assistant';
+  const b=document.createElement('div'); b.className='bubble';
+  b.innerHTML='<div class="meta">…</div>';
+  const thinks=document.createElement('div'); thinks.className='thinking hidden';
+  const tools=document.createElement('div');
+  const text=document.createElement('div');
+  b.appendChild(thinks); b.appendChild(tools); b.appendChild(text); row.appendChild(b); chat.appendChild(row);
+  const old=streamBuf; streamBuf={ row, textEl:text, thinksEl:thinks, toolsEl:tools, hadThinking:old.hadThinking, hadTools:old.hadTools };
+  chat.scrollTop=chat.scrollHeight;
+}
+
+/* ---------- SSE chat ---------- */
+async function send(){
+  const inp=$('#input'), text=inp.value.trim();
+  if(!text||state.busy) return;
+  if(!state.sessionId){ await newSession(); }
+  state.busy=true; setBusy(true); inp.value='';
+  // append user bubble immediately
+  const chat=$('#chat');
+  const u=document.createElement('div'); u.className='msgrow user';
+  const ub=document.createElement('div'); ub.className='bubble'; ub.textContent=text; u.appendChild(ub); chat.appendChild(u);
+  ensureStreamBubble();
+  $('#streamMeta').textContent='连接 agent…';
+
+  let url='/api/chat';
+  try{
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sessionId:state.sessionId,text,provider:selectedProvider()})});
+    if(!res.ok || !res.headers.get('content-type')?.includes('text/event-stream')){
+      const t=await res.text(); throw new Error(t);
+    }
+    const reader=res.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n\n'))>=0){
+        const evt=buf.slice(0,i); buf=buf.slice(i+2);
+        handleEvent(evt);
+      }
+    }
+  }catch(e){
+    addSystem('⚠ 错误: '+e.message);
+    finishStream(true);
+  }
+}
+function handleEvent(blob){
+  if(!blob) return;
+  let type=null, data=new Map();
+  blob.split('\n').forEach(line=>{
+    if(line.startsWith('event:')) type=line.slice(6).trim();
+    else if(line.startsWith('data:')) { const v=line.slice(5).trim(); data.set(type, (data.get(type)||'')+v); }
+  });
+  const p={}; data.forEach((v,k)=>p[k]=v);
+  const kindType = type || Object.keys(p)[0];
+  onEvent(kindType, JSON.parse(p[kindType]||'{}'));
+}
+function onEvent(t, d){
+  const sb=ensureStreamBubble();
+  if(t==='user'){ $('#streamMeta').textContent='收到，agent 运行中…'; }
+  else if(t==='thinking'){ sb.hadThinking=true; sb.thinksEl.classList.remove('hidden');
+      const w=document.createElement('span'); w.textContent=d.text; sb.thinksEl.appendChild(w); scrollChat(); }
+  else if(t==='text'){ const n=document.createElement('span'); n.textContent=d.text; sb.textEl.appendChild(n); scrollChat(); }
+  else if(t==='tool_start'){ sb.hadTools=true; const c=toolChip({name:d.name,status:'run'}); c.setAttribute('data-id',d.id); sb.toolsEl.appendChild(c); scrollChat(); }
+  else if(t==='tool_end'){ const chip=sb.toolsEl.querySelector('[data-id="'+d.id+'"]'); if(chip){
+      chip.className='toolchip '+(d.ok?'ok':'err');
+      if(!d.ok) chip.innerHTML=`✕ ${d.name}`; else chip.innerHTML=`✓ ${d.name}`;
+    } scrollChat(); }
+  else if(t==='usage'){ $('#streamMeta').textContent='↥'+d.input+' ↧'+d.output+' tokens'; }
+  else if(t==='done'){ finishStream(false,d); }
+  else if(t==='error'){ addSystem('⚠ '+d.error); finishStream(true); }
+}
+function finishStream(hadError, d){
+  state.busy=false; setBusy(false); $('#input').focus();
+  const sb=ensureStreamBubble();
+  if(sb){ if(sb.textEl.childNodes.length===0 && !hadError) sb.textEl.textContent='(无文本回复)'; sb.detached=true; }
+  streamBuf=null;
+  if(!hadError){ loadSessions(); const cid=state.sessionId; openSession(cid); }
+  $('#statusText').textContent='就绪';
+}
+function setBusy(b){
+  $('#send').disabled=b;
+  $('#statusDot').className='dot '+(b?'busy':'');
+  $('#statusText').textContent=b?'运行中…':'就绪';
+  $('#mDot').className='dot '+(b?'busy':'');
+}
+function addSystem(t){ const d=$('#chat'); const r=document.createElement('div'); r.className='msgrow system';
+  const b=document.createElement('div'); b.className='bubble'; b.textContent=t; r.appendChild(b); d.appendChild(r); d.scrollTop=d.scrollHeight; }
+function scrollChat(){ const c=$('#chat'); c.scrollTop=c.scrollHeight; }
+
+/* ---------- right panel ---------- */
+async function loadTools(){
+  try{
+    const d=await api('/api/tools');
+    $('#kTools').textContent=d.tools.length;
+    const list=$('#toolList'); list.innerHTML='';
+    d.tools.forEach(t=>{
+      const row=document.createElement('div'); row.className='trow';
+      row.innerHTML=`<div class="nm">${esc(t.name)}<span class="pill ${t.available?'ok':''}">${t.available?'可用':'不可用'}</span></div>`;
+      list.appendChild(row);
+    });
+  }catch(e){}
+}
+async function loadMemory(){
+  try{
+    const d=await api('/api/memory');
+    const list=$('#memList'); list.innerHTML='';
+    if(!d.notes||!d.notes.length){ list.innerHTML='<div style="color:var(--muted);font-size:12px">暂无记忆条目</div>'; }
+    d.notes.forEach(n=>{ const r=document.createElement('div'); r.className='mrow'; r.textContent='· '+n; list.appendChild(r); });
+  }catch(e){}
+}
+async function loadSync(){
+  try{
+    const d=await api('/api/sync/status');
+    const row=$('#syncRow');
+    row.innerHTML=`<span class="dot ${d.enabled?'':'off'}" style="background:${d.enabled?'var(--accent2)':'#555'}"></span><span>${d.enabled?'同步已启用 · '+d.message:'同步未启动'}</span>`;
+  }catch(e){}
+}
+async function startSync(){
+  try{ const d=await api('/api/sync/start',{method:'POST'}); toast(d.message||'同步已启动'); loadSync(); }
+  catch(e){ toast('同步失败: '+e.message); }
+}
+async function loadProviders(){
+  const d=await api('/api/providers');
+  const sel=$('#providerSel'); sel.innerHTML='';
+  d.providers.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.label+(p.ready?' ✓':' (无key)'); sel.appendChild(o); });
+  const tags=$('#providerTags'); tags.innerHTML='';
+  d.providers.filter(p=>p.ready).forEach(p=>{ const s=document.createElement('span'); s.className='tag on'; s.textContent=p.label; tags.appendChild(s); });
+  if(!d.providers.some(p=>p.ready)){ const s=document.createElement('span'); s.className='tag'; s.textContent='本地回显 (Echo)'; tags.appendChild(s); }
+}
+function selectedProvider(){ return $('#providerSel').value || 'auto'; }
+
+/* ---------- util ---------- */
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function rel(t){ const s=(Date.now()-new Date(t).getTime())/1000;
+  if(s<60)return '刚刚'; if(s<3600)return Math.floor(s/60)+'分'; if(s<86400)return Math.floor(s/3600)+'时'; return Math.floor(s/86400)+'天'; }
+function updateTitle(){ const s=state.sessionId; $('#curTitle').textContent = s?'会话 · '+s.slice(7,12):'选择或新建会话'; }
+function switchTab(t){ document.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  ['tools','memory','sync'].forEach(x=>$('#tab-'+x).classList.toggle('hidden',x!==t)); }
+let _toastEl=null;
+function toast(msg){ if(!_toastEl){ _toastEl=document.createElement('div'); _toastEl.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1c2740;padding:10px 16px;border-radius:8px;font-size:13px;z-index:9;border:1px solid var(--border)'; document.body.appendChild(_toastEl);}
+  _toastEl.textContent=msg; clearTimeout(_toastEl._t); _toastEl._t=setTimeout(()=>_toastEl.remove(),2500); }
+
+/* ---------- wiring ---------- */
+$('#newBtn').addEventListener('click',newSession);
+$('#mSessions').addEventListener('click',()=>{ const s=$('#side'); s.style.display=s.style.display==='none'?'flex':'none'; });
+$('#mRight').addEventListener('click',()=>{ const s=$('#right'); s.style.display=s.style.display==='none'?'flex':'none'; });
+$('#input').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
+$('#send').addEventListener('click',send);
+
+(async function boot(){
+  await Promise.all([loadSessions(),loadTools(),loadMemory(),loadSync(),loadProviders()]);
+  if(!state.sessionId){ const d=await api('/api/sessions'); if(d.sessions.length){ openSession(d.sessions[0].id); } }
+  $('#statusDot').className='dot'; $('#statusText').textContent='就绪';
+  setInterval(()=>bootRefresh(),15000);
+})();
+async function bootRefresh(){ if(state.busy)return; loadSessions(); loadSync(); }
+</script>
+</body>
+</html>
