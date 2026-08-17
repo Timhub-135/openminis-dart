@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>发送到 OpenMinis</title>
+<style>
+  body{background:#0c1018;color:#e7ecf3;font-family:system-ui,sans-serif;padding:14px;margin:0;min-width:260px}
+  h1{font-size:14px;color:#3b6cf6;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#3b6cf6;display:inline-block}
+  label{font-size:11px;color:#8b96ab;display:block;margin:8px 0 3px}
+  input,textarea{width:100%;box-sizing:border-box;padding:8px 9px;border-radius:8px;
+    border:1px solid #232d42;background:#121826;color:#fff;font-size:13px}
+  textarea{min-height:70px;resize:vertical}
+  #stat{margin-top:8px;font-size:12px;color:#8b96ab;min-height:16px}
+  #stat.ok{color:#21c063} #stat.err{color:#e5484d}
+  #send{width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;
+    background:#3b6cf6;color:#fff;font-size:14px;cursor:pointer;font-weight:600}
+  #send:disabled{opacity:.5}
+  .hint{font-size:11px;color:#556;line-height:1.5}
+  a{color:#3b6cf6}
+</style>
+</head>
+<body>
+  <h1><span class="dot"></span>发送到 OpenMinis</h1>
+
+  <label for="url">URL（当前页面）</label>
+  <input id="url" placeholder="https://…" autocomplete="off">
+
+  <label for="text">文字（可编辑 / 已预填剪贴板）</label>
+  <textarea id="text" placeholder="要分享的内容…"></textarea>
+
+  <button id="send">发送</button>
+  <div id="stat"></div>
+  <div class="hint">也可在网页中<b>长按链接</b>或<b>长按页面</b>，从菜单选「发送到 OpenMinis」。</div>
+
+  <script src="../lib/api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

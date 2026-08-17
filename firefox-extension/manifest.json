@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "OpenMinis Share",
+  "version": "1.2.0",
+  "description": "将 URL 或选中文字分享到局域网中的 OpenMinis 接收端。长按/选中 → 分享菜单 → 发送到 OpenMinis。",
+  "applications": {
+    "gecko": {
+      "id": "openminis-share@openminis.app",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": [
+    "menus",
+    "storage",
+    "activeTab",
+    "tabs",
+    "clipboardRead",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "lib/api.js",
+      "background.js"
+    ]
+  },
+  "options_ui": {
+    "page": "options/options.html"
+  },
+  "browser_action": {
+    "default_title": "OpenMinis · 打开设置",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  }
+}

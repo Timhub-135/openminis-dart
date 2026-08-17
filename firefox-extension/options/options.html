@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenMinis 连接设置</title>
+<style>
+  body{background:#0c1018;color:#e7ecf3;font-family:system-ui,sans-serif;padding:20px;margin:0}
+  h1{font-size:16px;color:#3b6cf6;margin:0 0 12px}
+  label{display:block;font-size:12px;color:#8b96ab;margin:10px 0 4px}
+  input{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #232d42;background:#121826;color:#fff;box-sizing:border-box;font-size:13px}
+  .row{display:flex;gap:8px;margin-top:14px}
+  button{flex:1;padding:9px;border:0;border-radius:8px;font-size:13px;cursor:pointer}
+  #save{background:#3b6cf6;color:#fff}
+  #test{background:#121826;color:#8b96ab;border:1px solid #232d42}
+  #status{margin-top:12px;padding:8px;border-radius:8px;background:#121826;font-size:12px;color:#8b96ab;min-height:18px}
+  #status.ok{color:#21c063}
+  #status.err{color:#e5484d}
+  code{background:#121826;padding:1px 4px;border-radius:4px;color:#9aa8c9}
+</style>
+</head>
+<body>
+  <h1>OpenMinis · 连接设置</h1>
+  <p style="font-size:12px;color:#8b96ab;margin:0 0 4px">
+    填入运行 OpenMinis 接收端的那台手机的局域网地址，例如
+    <code>http://192.168.1.20:8741</code>。
+  </p>
+  <label for="serverUrl">OpenMinis 接收端地址</label>
+  <input id="serverUrl" placeholder="http://192.168.1.20:8741" autocomplete="url">
+  <div class="row">
+    <button id="test">测试连接</button>
+    <button id="save">保存</button>
+  </div>
+  <div id="status"></div>
+
+  <script src="../lib/api.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
