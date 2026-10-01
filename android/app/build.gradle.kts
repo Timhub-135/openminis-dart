@@ -38,15 +38,13 @@ android {
     // targetSdk >= 29 (W^X). That requires the libraries to be *extracted* at
     // install time rather than mapped straight out of the APK, which is what
     // useLegacyPackaging turns back on.
+    //
+    // The VM images under assets/vm need no special handling: VmAssetInstaller
+    // copies them into filesDir on first launch, so whether aapt deflates them
+    // inside the APK only affects download size.
     packaging {
         jniLibs {
             useLegacyPackaging = true
-        }
-        resources {
-            // The VM images are already compressed (squashfs/zstd, gzipped
-            // initramfs) and QEMU reads them from disk: re-deflating them costs
-            // build time and APK memory for nothing.
-            noCompress += listOf("squashfs", "img", "rom", "vmlinuz-virt")
         }
     }
 
