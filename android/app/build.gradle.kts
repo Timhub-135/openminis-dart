@@ -1,9 +1,9 @@
 plugins {
-    id "com.android.application"
-    id "kotlin-android"
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin
     // Gradle plugins.
-    id "dev.flutter.flutter-gradle-plugin"
+    id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
@@ -18,45 +18,47 @@ android {
 
     defaultConfig {
         applicationId = "com.openminis.app"
-        // Flutter min SDK is API 21; agents/sync work fine from there.
+        // Flutter's min SDK; the agent + sync work fine from there. The R2 VM
+        // only needs API 21+ of the host (QEMU runs entirely in userspace).
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutterVersionCode.toInteger()
-        versionName = flutterVersionName
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
 
-        // The R2 VM payload (QEMU + kernel + squashfs) is arm64-only.
+        // The R2 VM payload is aarch64 only: QEMU, the guest kernel and the
+        // Alpine rootfs are all arm64-v8a. Shipping 32-bit ABI stubs would only
+        // bloat the APK, so the native libraries are arm64-only.
         ndk {
             abiFilters += "arm64-v8a"
         }
     }
 
-    // The sandbox executes QEMU out of the APK's native library dir, because
-    // Android (API 29+) denies exec() on files in the app's writable data dir.
-    // That only works when the libs are extracted at install time instead of
-    // being mapped straight out of the APK — hence useLegacyPackaging.
+    // The sandbox exec()s QEMU out of the APK's native library directory, since
+    // Android denies exec() on files inside the app's writable data dir for
+    // targetSdk >= 29 (W^X). That requires the libraries to be *extracted* at
+    // install time rather than mapped straight out of the APK, which is what
+    // useLegacyPackaging turns back on.
     packaging {
         jniLibs {
             useLegacyPackaging = true
         }
         resources {
-            // The VM blobs are already-compressed images (squashfs, gzipped
-            // initramfs): re-deflating them costs build time and APK memory for
-            // no gain, and QEMU reads them from disk anyway.
+            // The VM images are already compressed (squashfs/zstd, gzipped
+            // initramfs) and QEMU reads them from disk: re-deflating them costs
+            // build time and APK memory for nothing.
             noCompress += listOf("squashfs", "img", "rom", "vmlinuz-virt")
         }
     }
 
     buildTypes {
         release {
-            // Use the Flutter default signing for dev builds; configure a
-            // real keystore before shipping.
+            // Debug keys so `flutter run --release` and CI builds work out of
+            // the box; configure a real keystore before publishing.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
 }
 
-// Kotlin 2.x moved the JVM target out of `kotlinOptions` (removed in AGP 9), so
-// the target is declared through the Kotlin extension instead.
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
