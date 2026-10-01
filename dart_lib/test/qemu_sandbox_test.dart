@@ -345,9 +345,14 @@ void main() {
 
     test('file IO outside the share goes through the guest shell', () async {
       final sb = make();
-      await sb.writeFile('/root/outside.txt', utf8.encode('x'));
+      // Anywhere writable works: the point is that a path outside the 9p share
+      // cannot be served by the host, so it must travel over the console.
+      // (A fixed /root/... path broke on CI runners, which are not root.)
+      final outside =
+          '${Directory.systemTemp.path}/openminis_outside_$pid.txt';
+      await sb.writeFile(outside, utf8.encode('x'));
       expect(guest.inbox, isNotEmpty);
-      final res = await sb.readFile('/root/outside.txt');
+      final res = await sb.readFile(outside);
       expect(utf8.decode(res), contains('x'));
     });
 
