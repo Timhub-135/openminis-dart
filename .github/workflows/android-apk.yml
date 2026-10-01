@@ -58,17 +58,33 @@ jobs:
           flutter-version: '3.47.5'
           cache: true
 
-      - name: Verify the VM payload is present
+      - uses: docker/setup-qemu-action@v3
+        if: ${{ !hashFiles('android/app/src/main/assets/vm/alpine-minis.squashfs') }}
+
+      - name: Ensure the VM payload exists
         run: |
           set -e
+          JNI=android/app/src/main/jniLibs/arm64-v8a
+          VM=android/app/src/main/assets/vm
+          missing=0
           for f in \
-            android/app/src/main/jniLibs/arm64-v8a/libqemu-system-aarch64.so \
-            android/app/src/main/jniLibs/arm64-v8a/libslirp.so \
-            android/app/src/main/jniLibs/arm64-v8a/libpodroid-launcher.so \
-            android/app/src/main/assets/vm/vmlinuz-virt \
-            android/app/src/main/assets/vm/initrd.img \
-            android/app/src/main/assets/vm/alpine-minis.squashfs ; do
-            test -s "$f" || { echo "missing: $f"; exit 1; }
+            "$JNI/libqemu-system-aarch64.so" "$JNI/libslirp.so" \
+            "$JNI/libpodroid-launcher.so" "$VM/vmlinuz-virt" "$VM/initrd.img" ; do
+            [ -s "$f" ] || { echo "absent: $f"; missing=1; }
+          done
+          if [ "$missing" = "1" ]; then
+            echo "==> pulling QEMU + guest kernel + initramfs from the upstream build"
+            ./tools/fetch-podroid-artifacts.sh
+          fi
+          if [ ! -s "$VM/alpine-minis.squashfs" ]; then
+            echo "==> building the Alpine rootfs in an arm64 container"
+            ./tools/build-vm-rootfs-docker.sh
+          fi
+          for f in \
+            "$JNI/libqemu-system-aarch64.so" "$JNI/libslirp.so" \
+            "$JNI/libpodroid-launcher.so" "$VM/vmlinuz-virt" "$VM/initrd.img" \
+            "$VM/alpine-minis.squashfs" ; do
+            test -s "$f" || { echo "still missing: $f"; exit 1; }
           done
           echo "payload ok"
 
