@@ -1,0 +1,41 @@
+#!/bin/sh
+# minis-rc — guest sysinit. Runs before the console agent, from /etc/inittab.
+#
+# The initramfs has already assembled the root (squashfs + persistent ext4
+# overlay) and moved /proc, /sys, /dev across switch_root; everything here is
+# idempotent so it is safe to re-run.
+set -u
+
+mountpoint -q /proc || mount -t proc -o noexec,nosuid,nodev proc /proc 2>/dev/null || true
+mountpoint -q /sys  || mount -t sysfs -o noexec,nosuid,nodev sysfs /sys 2>/dev/null || true
+mountpoint -q /dev  || mount -t devtmpfs -o exec,nosuid,mode=0755 devtmpfs /dev 2>/dev/null || true
+mkdir -p /dev/pts /dev/shm /run
+mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts 2>/dev/null || true
+mountpoint -q /dev/shm || mount -t tmpfs tmpfs /dev/shm 2>/dev/null || true
+mountpoint -q /run     || mount -t tmpfs tmpfs /run 2>/dev/null || true
+
+hostname minis 2>/dev/null || true
+
+# Host share (QEMU virtio-9p, mount_tag=minis). Optional: present only when the
+# host passes -fsdev/-device; a failed mount is normal and non-fatal.
+mkdir -p /mnt/minis
+mountpoint -q /mnt/minis || \
+    mount -t 9p -o trans=virtio,version=9p2000.L,cache=loose,msize=1048576 minis /mnt/minis 2>/dev/null || true
+
+# Network — QEMU user-mode (slirp) fixed topology: 10.0.2.15/24, gw 10.0.2.2, dns 10.0.2.3.
+ip link set lo up 2>/dev/null || true
+if ip link show eth0 >/dev/null 2>&1; then
+    ip link set eth0 up 2>/dev/null || true
+    ip addr add 10.0.2.15/24 dev eth0 2>/dev/null || true
+    ip route add default via 10.0.2.2 2>/dev/null || true
+fi
+
+mkdir -p /etc
+printf 'nameserver 10.0.2.3\nnameserver 1.1.1.1\n' > /etc/resolv.conf 2>/dev/null || true
+printf '127.0.0.1\tlocalhost\n10.0.2.15\tminis\n' > /etc/hosts 2>/dev/null || true
+printf 'minis\n' > /etc/hostname 2>/dev/null || true
+
+# Disk-space comfort on TCG: no atime writes on the overlay.
+mount -o remount,noatime / 2>/dev/null || true
+
+exit 0

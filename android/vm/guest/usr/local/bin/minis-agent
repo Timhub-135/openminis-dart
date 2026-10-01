@@ -1,0 +1,99 @@
+#!/bin/sh
+# minis-agent — command endpoint on the guest virtio-console (hvc0).
+#
+# The Android host opens a unix socket to QEMU's console chardev (the same
+# virtio-console port this script owns) and speaks a line protocol. Frames are
+# chunked: a Linux tty in canonical mode caps a line at MAX_CANON (4096 bytes),
+# so both directions carry base64 in <=1024-char pieces instead of one long
+# line. That also keeps any payload (binary, UTF-8, newlines) intact.
+#
+#   guest -> host   MINIS_READY 1
+#   host  -> guest  MINIS_PING                  guest -> host  MINIS_PONG
+#
+#   host  -> guest  MINIS_EXEC <id> <chunk>     (first chunk, starts a command)
+#   host  -> guest  MINIS_DATA <chunk>          (continuation chunks)
+#   host  -> guest  MINIS_RUN                   (decode + execute)
+#   guest -> host   MINIS_START <id>
+#                   MINIS_OUT <id> <chunk>      (repeated)
+#                   MINIS_END <id> <exitcode>
+#   guest -> host   MINIS_ERR <id> <reason>
+#
+# Exit code and output of the *last* command are the only state; the host
+# serialises commands, so no command queue is needed here.
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+HOME=/root
+TERM=xterm-256color
+export HOME TERM
+cd /root 2>/dev/null || cd /
+
+OUT_MAX=8388608        # 8 MiB of command output; beyond this we truncate
+CHUNK=1024             # base64 chars per frame (safe under MAX_CANON)
+INBUF=/tmp/.minis-inbox
+
+# No echo: otherwise the command we send is bounced back into the frame stream.
+# No ONLCR: our frames must end in a bare LF or the host has to trim CRs.
+stty -echo -onlcr 2>/dev/null || true
+
+emit() { printf '%s\n' "$1"; }
+cur=""
+
+emit "MINIS_READY 1"
+
+while IFS= read -r line; do
+    case "$line" in
+        MINIS_PING)
+            emit "MINIS_PONG"
+            ;;
+        MINIS_EXEC\ *)
+            rest=${line#MINIS_EXEC }
+            cur=${rest%% *}
+            chunk=${rest#* }
+            [ "$chunk" = "$rest" ] && chunk=""
+            printf '%s' "$chunk" > "$INBUF"
+            ;;
+        MINIS_DATA\ *)
+            chunk=${line#MINIS_DATA }
+            printf '%s' "$chunk" >> "$INBUF"
+            ;;
+        MINIS_RUN)
+            id=$cur
+            cur=""
+            if [ -z "$id" ]; then
+                emit "MINIS_ERR - noframe"
+                continue
+            fi
+            script="/tmp/.minis-cmd.$id"
+            out="/tmp/.minis-out.$id"
+            if ! base64 -d < "$INBUF" > "$script" 2>/dev/null; then
+                emit "MINIS_ERR $id b64decode"
+                rm -f "$script"
+                continue
+            fi
+            emit "MINIS_START $id"
+            sh "$script" > "$out" 2>&1
+            code=$?
+            rm -f "$script"
+            if [ -s "$out" ]; then
+                size=$(wc -c < "$out")
+                if [ "$size" -gt "$OUT_MAX" ]; then
+                    head -c "$OUT_MAX" "$out" > "$out.trunc"
+                    printf '\n[minis] output truncated at %s bytes\n' "$OUT_MAX" >> "$out.trunc"
+                    mv "$out.trunc" "$out"
+                fi
+                base64 -w0 < "$out" | fold -w "$CHUNK" | while IFS= read -r c; do
+                    printf 'MINIS_OUT %s %s\n' "$id" "$c"
+                done
+            fi
+            rm -f "$out"
+            emit "MINIS_END $id $code"
+            ;;
+        *)
+            # Echoed newline / unknown frame: ignore, never die on it.
+            ;;
+    esac
+done
+
+# Console closed (host disconnected or VM stopping).
+exit 0

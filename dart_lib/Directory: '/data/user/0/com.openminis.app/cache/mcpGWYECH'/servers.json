@@ -1,0 +1,1 @@
+{"mcpServers":{"filesystem":{"id":"filesystem","enabled":true,"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem"]},"remote":{"id":"remote","enabled":true,"url":"https://mcp.example.com"}}}

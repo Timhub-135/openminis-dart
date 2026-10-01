@@ -27,7 +27,7 @@ flutter_minis/
 │   ├── lib/src/tools/        #   tool registry, param schema, preflight
 │   ├── lib/src/providers/    #   LLM client, SSE parser, secret resolution
 │   ├── lib/src/agent/        #   agent loop, request budget, compaction
-│   ├── lib/src/sandbox/      #   ★ Linux shell (Docker-Alpine on Windows, Termux on Android)
+│   ├── lib/src/sandbox/      #   ★ Linux shell (Docker-Alpine on Windows, QEMU/Alpine VM on Android)
 │   ├── lib/src/sync/         #   ★ cross-platform sync engine (new)
 │   └── test/                 #   37 running unit tests
 ├── lib/                      # Flutter app shell (Windows + Android UI)
@@ -45,7 +45,7 @@ Flutter or network required:
 ```sh
 cd dart_lib
 dart pub get        # resolves via pub.flutter-io.cn mirror if needed
-dart test           # 37 tests: SSE, agent loop, sync, sandbox, Termux bridge…
+dart test           # 85 tests: SSE, agent loop, sync, sandbox, VM console protocol…
 ```
 
 Results: **37 / 37 passing**, `dart analyze` clean.
@@ -62,12 +62,20 @@ PRoot on Android) is re-created per platform:
 - `sandbox/windows_docker_sandbox.dart` — **Windows: DockerAlpineSandbox**:
   `docker run` `alpine:<tag>` once, detached, with the app data dir bind-mounted
   at `/var/minis/`; then `docker exec` for commands and stdin/file transfer.
-- `sandbox/android_termux_sandbox.dart` — **Android: runs commands inside the
-  installed Termux shell** (no root / PRoot / Docker needed), bridging results
-  through a shared directory + the `com.termux.RUN_COMMAND` broadcast.
+- `sandbox/android_qemu_sandbox.dart` + `sandbox/qemu_vm.dart` — **Android: a
+  real Alpine VM** booted with QEMU (TCG) from the APK's own payload, driven
+  over the guest's virtio-console. No root, no Termux, no PRoot, no ptrace, no
+  user namespaces, no `/dev/kvm`. Writes persist in a sparse ext4 overlay.
+- `sandbox/android_termux_sandbox.dart` — the **legacy** Android backend
+  (Termux via `RUN_COMMAND`), still selectable with
+  `SandboxFactory.create(androidBackend: AndroidSandboxBackend.termux)`.
 - `sandbox/sandbox_factory.dart` — picks the right implementation per platform.
 - `sandbox/sandbox_tool.dart` — exposes the sandbox to the agent as
   `linux_sh` / `sandbox_read` / `sandbox_write` tools.
+
+Full design, protocol, payload layout and build steps:
+[docs/android-vm-backend.md](docs/android-vm-backend.md); why the other Android
+options were not taken: [docs/android-sandbox-options.md](docs/android-sandbox-options.md).
 
 ### Windows — Docker Alpine
 
@@ -76,11 +84,28 @@ docker run -d --name openminis-sandbox -v /path/to/data:/var/minis --entrypoint 
 ```
 The app does this for you on first launch (see `DockerAlpineSandbox.start()`).
 
-### Android — Termux (when already installed)
+### Android — QEMU/Alpine VM (R2)
 
-This app doesn't ship its own Linux sandbox on Android; it **lets the agent use
-Termux**, which is a real Linux environment already on the phone. Because an
-Android broadcast has no return value, commands run through a small file bridge:
+The APK ships the whole sandbox: QEMU (as a native library, so it is executable
+from the native library dir — Android denies `exec()` in the app's data dir since
+API 29), a guest kernel, an initramfs, and a ~46 MB Alpine squashfs. On first
+launch `VmAssetInstaller` unpacks those into `filesDir/vm`; the VM boots behind
+an idempotent `start()` and answers `linux_sh` calls. A sparse `storage.img` is
+the writable overlay, so `apk add` and anything the agent writes survive
+restarts. Payload costs ~145 MB of APK, arm64 only, and runs at TCG speed.
+
+```sh
+./tools/fetch-podroid-artifacts.sh   # QEMU + kernel + initramfs (upstream build)
+./tools/build-vm-rootfs.sh           # our Alpine rootfs + minis-agent
+flutter build apk --debug            # or --release
+```
+
+### Android — Termux (legacy backend)
+
+Kept for devices where the VM cannot run. The app lets the agent use an
+installed **Termux**, bridging commands through a shared directory + the
+`com.termux.RUN_COMMAND` broadcast (no return value, so the result comes back as
+a JSON file the app polls):
 
 1. App writes `cmd_<id>.txt` into a **shared** dir (e.g. `/sdcard/Download/.openminis`,
    readable by both the app and Termux).
@@ -105,7 +130,7 @@ Android broadcast has no return value, commands run through a small file bridge:
 | `SSEStream`, `ProviderFactory`, `LLMUsage` | `providers/sse_stream.dart`, `providers/provider_factory.dart`, `providers/llm_usage.dart` |
 | `AIChatViewModel` (+`SSEStream`, `RequestBudget`, `ConcurrentTools`) | `agent/agent_loop.dart`, `agent/request_budget.dart` |
 | `+Compaction` / `ContextPolicy.swift` | `agent/compaction.dart` |
-| Android `Shell` / iOS `ISH` (Linux shell) | `sandbox/` — Windows **Docker+Alpine**, Android **Termux** |
+| Android `Shell` / iOS `ISH` (Linux shell) | `sandbox/` — Windows **Docker+Alpine**, Android **QEMU/Alpine VM** (Termux backend kept as legacy) |
 | `Agent/Sync/CloudSyncEngine.swift` (iCloud) | `sync/sync_engine.dart` (LAN/relay, cross-OS) **new** |
 
 ### Faithful details kept in the port
@@ -195,7 +220,7 @@ through `SecretResolver` (never echoed to logs).
 
 Targets **Windows + Android only** (no iOS). This rewrite delivers the **core
 agent runtime** (models, stores, tool loop, provider streaming, memory/skills),
-a working **Linux shell sandbox** (Docker+Alpine on Windows; Termux on Android),
+a working **Linux shell sandbox** (Docker+Alpine on Windows; a QEMU/Alpine VM on Android),
 and the **sync engine**, all tested. Deep per-OS integrations (Health/HomeKit/
 Shizuku etc.) stay as extra `Tool`s per platform — the `ToolRegistry` and
 `AgentLoop` are shaped so those drop in without touching the core.

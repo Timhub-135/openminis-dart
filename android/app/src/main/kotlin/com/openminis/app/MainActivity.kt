@@ -15,6 +15,13 @@ class MainActivity : FlutterActivity() {
 
     private var pendingShare: JSONObject? = null
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Unpack the R2 VM payload (kernel, initramfs, Alpine squashfs) from the
+        // APK on first launch; the Dart sandbox waits for the `.ready` marker.
+        VmAssetInstaller.ensureInstalled(this)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->

@@ -1,0 +1,9 @@
+# /etc/fstab — the root is assembled by the initramfs; this only declares the
+# mounts minis-rc sets up by hand (kept for `mount -a` / tools that read fstab).
+proc      /proc     proc     defaults               0 0
+sysfs     /sys      sysfs    defaults               0 0
+devtmpfs  /dev      devtmpfs mode=0755,nosuid       0 0
+devpts    /dev/pts  devpts   defaults,gid=5,mode=620 0 0
+tmpfs     /dev/shm  tmpfs    mode=1777,nosuid,nodev 0 0
+tmpfs     /run      tmpfs    mode=0755,nosuid,nodev 0 0
+minis     /mnt/minis 9p      trans=virtio,version=9p2000.L,cache=loose 0 0

@@ -1,0 +1,158 @@
+name: android-apk
+
+# Builds the Android APK that carries the R2 sandbox payload (QEMU + guest
+# kernel + Alpine squashfs) and, when a tag (or a manual release_tag) asks for
+# it, publishes it as a GitHub Release.
+#
+# The payload is committed to the repo under
+# android/app/src/main/{jniLibs,assets/vm}, so the runner only needs
+# Flutter/Dart. To rebuild the payload instead: tools/fetch-podroid-artifacts.sh
+# and tools/build-vm-rootfs.sh (the latter needs an aarch64 host with apk-tools).
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Create a release with this tag (leave empty to only build)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: dart_lib tests (no device needed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Run the core test suite
+        working-directory: dart_lib
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+
+  apk:
+    name: Build APK (arm64-v8a)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.5'
+          cache: true
+
+      - name: Verify the VM payload is present
+        run: |
+          set -e
+          for f in \
+            android/app/src/main/jniLibs/arm64-v8a/libqemu-system-aarch64.so \
+            android/app/src/main/jniLibs/arm64-v8a/libslirp.so \
+            android/app/src/main/jniLibs/arm64-v8a/libpodroid-launcher.so \
+            android/app/src/main/assets/vm/vmlinuz-virt \
+            android/app/src/main/assets/vm/initrd.img \
+            android/app/src/main/assets/vm/alpine-minis.squashfs ; do
+            test -s "$f" || { echo "missing: $f"; exit 1; }
+          done
+          echo "payload ok"
+
+      - run: flutter pub get
+      - name: Build
+        run: flutter build apk --release
+
+      - name: Name the artifact and report what matters
+        id: pack
+        run: |
+          set -e
+          APK=$(ls build/app/outputs/flutter-apk/*.apk | head -1)
+          VER=$(grep -E '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          OUT="openminis-r2-${VER}-arm64-v8a.apk"
+          cp "$APK" "build/app/outputs/flutter-apk/$OUT"
+          echo "apk=build/app/outputs/flutter-apk/$OUT" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "--- payload entries in the APK ---"
+          unzip -l "build/app/outputs/flutter-apk/$OUT" | grep -E \
+            'lib/arm64-v8a/(libqemu|libslirp|libpodroid-launcher)|assets/vm/' || true
+          ls -lh "build/app/outputs/flutter-apk/$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openminis-r2-apk
+          path: ${{ steps.pack.outputs.apk }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: [apk]
+    if: >-
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      || github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: openminis-r2-apk
+          path: dist
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.release_tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "publishing $TAG"
+
+      - name: Release notes
+        run: |
+          VER=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
+          {
+            echo "OpenMinis (Dart/Flutter) — Android build with the **R2 sandbox**:"
+            echo "a QEMU/Alpine virtual machine shipped inside the APK."
+            echo
+            echo "* app version: \`$VER\`"
+            echo "* ABI: **arm64-v8a** only (the QEMU payload and the guest kernel are aarch64)"
+            echo "* minSdk / targetSdk: see \`android/app/build.gradle.kts\`"
+            echo "* sandbox: QEMU (TCG) + Alpine guest, no root / Termux / PRoot required"
+            echo "* signed with the debug keystore — sideload only, not a Play upload"
+            echo
+            echo "On first launch the app unpacks ~107 MB of VM payload into its own"
+            echo "data dir (a few seconds); the guest boots on the first \`linux_sh\` call."
+            echo "Writes inside the guest persist in a sparse ext4 image."
+            echo
+            echo "Docs: [\`docs/android-vm-backend.md\`](docs/android-vm-backend.md) ·"
+            echo "third-party payload notice: [\`NOTICE-vm-payload.md\`](NOTICE-vm-payload.md)"
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: OpenMinis ${{ steps.tag.outputs.tag }} (Android, R2 VM backend)
+          body_path: RELEASE_NOTES.md
+          files: dist/*.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: false

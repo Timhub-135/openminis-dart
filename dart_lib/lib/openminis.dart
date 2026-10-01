@@ -61,10 +61,13 @@ export 'src/sync/sync_peer.dart';
 export 'src/sync/sync_manifest.dart';
 export 'src/sync/sync_message.dart';
 
-// ---- sandbox (Linux shell; Docker Alpine on Windows, Termux on Android) -----
+// ---- sandbox (Linux shell; Docker Alpine on Windows, QEMU/Alpine VM on Android)
 export 'src/sandbox/sandbox.dart';
 export 'src/sandbox/sandbox_factory.dart';
 export 'src/sandbox/windows_docker_sandbox.dart';
+export 'src/sandbox/qemu_vm.dart';
+export 'src/sandbox/android_qemu_sandbox.dart';
+// Legacy Android backend (Termux bridge) — still importable, no longer default.
 export 'src/sandbox/android_termux_sandbox.dart';
 export 'src/sandbox/sandbox_tool.dart';
 

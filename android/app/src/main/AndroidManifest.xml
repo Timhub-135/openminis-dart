@@ -7,7 +7,12 @@
     <application
         android:label="OpenMinis"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:extractNativeLibs="true">
+        <!-- extractNativeLibs (kept in sync with packaging.jniLibs.useLegacyPackaging
+             in build.gradle.kts) is what lets the R2 sandbox exec QEMU from the
+             APK's native library directory — the only location a modern Android
+             app may execute a file from. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

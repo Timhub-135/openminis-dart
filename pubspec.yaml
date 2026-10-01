@@ -5,7 +5,9 @@ description: >
   provides the cross-platform UI, the platform storage/network adapters, and the
   LAN/relay sync wiring.
 publish_to: 'none'
-version: 0.1.0+1
+# 0.2.0 — the Android sandbox is now the R2 QEMU/Alpine VM shipped in the APK
+# (the Termux bridge remains available as `AndroidSandboxBackend.termux`).
+version: 0.2.0+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

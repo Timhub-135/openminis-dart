@@ -1,26 +1,42 @@
 import 'dart:io';
 
 import '../models/platform_info.dart';
+import 'android_qemu_sandbox.dart';
 import 'android_termux_sandbox.dart';
+import 'qemu_vm.dart';
 import 'sandbox.dart';
 import 'windows_docker_sandbox.dart';
+
+/// Which Android implementation to build.
+enum AndroidSandboxBackend {
+  /// **R2 (default)** — boot the QEMU/Alpine VM that ships inside the APK.
+  /// Needs no Termux, no PRoot, no ptrace, no user namespaces, no root.
+  qemu,
+
+  /// Legacy — run commands inside an installed Termux via `RUN_COMMAND`.
+  /// Kept for devices where the VM cannot run (and for the sim tests).
+  termux,
+}
 
 /// Builds the right sandbox for the current platform.
 ///
 ///   • **Windows**  → [DockerAlpineSandbox] (Docker + Alpine).
-///   • **Android**  → [AndroidTermuxSandbox]: runs commands inside the installed
-///                    Termux shell (no root / PRoot / Docker needed), using a
-///                    shared bridge directory + `com.termux.RUN_COMMAND`.
+///   • **Android**  → [AndroidQemuSandbox] (R2): a real VM with its own kernel,
+///                    launched from the APK's native library dir, driven over
+///                    the guest's virtio-console.
+///   • **Android (legacy)** → [AndroidTermuxSandbox]: the old Termux bridge.
 class SandboxFactory {
   /// Creates the default sandbox for the current OS.
   ///
   /// [hostMinisDir] is the real on-disk location of `/var/minis` for the
-  /// current device (e.g. the app data dir on Windows; on Android it's the
-  /// bridge dir used by Termux). [os] defaults to [PlatformInfo.operatingSystem]
+  /// current device (the app data dir; on Android that is `filesDir`, where the
+  /// VM payload is unpacked). [os] defaults to [PlatformInfo.operatingSystem]
   /// so the web build (where `dart:io` is unavailable) is kept safe.
   static Sandbox create({
     required String hostMinisDir,
     String? os,
+    AndroidSandboxBackend androidBackend = AndroidSandboxBackend.qemu,
+    VmConfig vmConfig = const VmConfig(),
   }) {
     final target = os ?? PlatformInfo.operatingSystem;
     switch (target) {
@@ -29,9 +45,12 @@ class SandboxFactory {
         // Linux desktop uses the same Docker/Alpine approach for parity.
         return DockerAlpineSandbox(hostMinisDir: hostMinisDir);
       case 'android':
-        // If the phone has Termux, run commands inside it. The bridge dir is
-        // where both this app and Termux can write (shared storage).
-        return AndroidTermuxSandbox(bridgeDir: hostMinisDir);
+        switch (androidBackend) {
+          case AndroidSandboxBackend.qemu:
+            return AndroidQemuSandbox(appDir: hostMinisDir, config: vmConfig);
+          case AndroidSandboxBackend.termux:
+            return AndroidTermuxSandbox(bridgeDir: hostMinisDir);
+        }
       default:
         // web / iOS / unknown: no on-device linux shell available.
         return UnsupportedSandbox(

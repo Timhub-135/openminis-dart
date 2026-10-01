@@ -1,0 +1,11 @@
+# /etc/inittab — busybox init for the OpenMinis R2 guest (no login, no getty).
+#
+# hvc0 is the virtio-console QEMU exposes as a unix socket; the Android host
+# connects to it and drives /usr/local/bin/minis-agent. ttyS0 stays available
+# as a serial debug shell (QEMU -serial).
+::sysinit:/etc/minis-rc
+hvc0::respawn:/usr/local/bin/minis-agent
+ttyS0::askfirst:/bin/sh
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init

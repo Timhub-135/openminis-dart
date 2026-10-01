@@ -77,9 +77,17 @@ void main() {
           SandboxFactory.create(hostMinisDir: '/d', os: 'windows'),
           isA<DockerAlpineSandbox>());
     });
-    test('android -> Termux', () {
+    test('android -> R2 QEMU VM backend (default)', () {
       expect(
           SandboxFactory.create(hostMinisDir: '/d', os: 'android'),
+          isA<AndroidQemuSandbox>());
+    });
+    test('android -> Termux backend when explicitly requested (legacy)', () {
+      expect(
+          SandboxFactory.create(
+              hostMinisDir: '/d',
+              os: 'android',
+              androidBackend: AndroidSandboxBackend.termux),
           isA<AndroidTermuxSandbox>());
     });
     test('ios -> unsupported', () {
